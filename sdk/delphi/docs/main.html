@@ -1,0 +1,938 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<HTML>
+
+<HEAD>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=utf-8">
+<LINK href="edk.css" rel="stylesheet" type="text/css">
+<TITLE>易语言支持库开发手册 for Delphi</TITLE>
+</HEAD>
+
+<BODY>
+
+<DIV class="body" id="body">
+
+<p><center><img src="logo.jpg" alt="易语言支持库开发手册 for Delphi"/></center></p>
+<p>版本：1.1</p>
+<p>日期：2008.8</p>
+<p>作者：大连大有吴涛易语言软件开发有限公司</p>
+<p>来源：<a href="http://www.eyuyan.com/sdk/delphi/docs/" target="_blank">http://www.eyuyan.com/sdk/delphi/docs/</a></p>
+
+
+<a name="0"></a>
+<H1>综述</H1>
+<P>这是易语言支持库开发包（EDK, E Development Kit）开发手册之 Delphi 版本。</P>
+<P>本文主要介绍如何用 Delphi 开发易语言支持库。</P>
+
+<a name="changelog"></a>
+<H2>最近更新</H2>
+<p>v1.1, 2008.8，主要增加“<a href="#compatibility">保证支持库的向下兼容性</a>”，以及部分文字改动。</p>
+<p>v1.0, 2008.5，第一个 Delphi 版本的支持库开发手册，随易语言4.10版发布。</p>
+
+<a name="basis"></a>
+<H2>基本说明</H2>
+<p>支持库是扩展易语言系统的主要方式之一，也是最有效的方式之一。</p>
+<p>通过使用其它编程语言为易语言开发支持库，易语言系统的功能可以得到无限扩展。</p>
+<p>通过支持库这一途径，易语言可以充分整合其它编程语言和操作系统的各种资源，为我所用。他山之石，可以攻玉。</p>
+<UL>
+  <LI>易语言支持库实际上是动态链接库（在Windows下为DLL文件，在Linux下为SO文件）</LI>
+  <LI>易语言支持库必须导出 "GetNewInf" 函数：<span style="background-color:#eeeeee">function <b>GetNewInf</b>() : pLIB_INFO; stdcall; export;</span></LI>
+  <LI>易语言支持库文件的后缀名通常是 ".fne"，还可能是 ".fnr" 或 ".fnl"</LI>
+  <LI>易语言中的文本、字节集、数组等数据都有其特定的二进制格式，请参考“<a href="#data">数据存储格式</a>”</LI>
+  <LI>开发易语言支持库之前，一定要仔细阅读本文档，和 EDK 中提供的 e.pas 头文件（其中有很多信息本文档没有涉及）
+</UL>
+<p>易语言对支持库的要求很简单，只要导出 GetNewInf 函数并返回填充完整的 LIB_INFO 结构体(record)的内存首地址即可。
+这看似简单的要求，实际操作起来却十分繁索，要知道，LIB_INFO 是一个非常复杂的结构体(record)，要完整的填充它不是一件轻松的事情。
+在 Delphi 版本的易语言支持库开发包中，我们做了大量的工作来简化这项操作，目的就是让 Delphi 开发易语言支持库比 C/C++ <a href="#easy">更容易</a>。<p>
+<p>还有一点要说明，Delphi/VCL 并不能完全融合到易语言中，在开发支持库时存在一定的<a href="#limitation">局限性</a>。</p>
+
+
+<a name="prepare"></a>
+<h1>配置开发环境</h1>
+<p>下载易语言支持库开发包(EDK)，解压缩到任意目录（如 "c:\edk"）。</p>
+<p>安装 Delphi (5/6/7/8/2005/2006/2007/2008)。本文以 Delphi7 为主。</p>
+<p>配置 Delphi，指定库搜索路径。请选择 Delphi 主菜单，"Tools -> Environment Options..."，在 "Library" 子项内的 "Library Path" 中增加 e.pas 所在路径（如 "c:\edk"）。</p>
+<p>以上操作为一次性操作，以后不需要重复进行。</p>
+
+
+<a name="myfne"></a>
+<h1>第一个支持库</h1>
+<p>在 Delphi 中创建一个空白的 Win32 DLL 工程(project)，存储为 myfne.dpr，修改其代码如下：</p>
+<pre>
+library myfne;
+
+uses
+  e, SysUtils, Classes;
+
+{$R *.res}
+{$E fne} //指定编译出的文件名后缀为"fne"
+
+//易语言支持库要求的导出函数 GetNewInf()
+function GetNewInf() : pLIB_INFO; stdcall; export;
+begin
+  result := GetLibInfo();
+end;
+
+//函数导出表(exports)
+exports
+  GetNewInf;
+
+begin
+
+  DefineLib
+  (
+      'myfne', '{5CAFDDB6-22E7-4B27-823A-A80A3919189F}', //szName, szGuid
+      'Delphi开发的一个简单的易语言支持库，主要用于演示。', //szExplain
+      1, 0, 1, __GBK_LANG_VER, //nMajorVersion, nMinorVersion, nBuildNumber, nLanguage
+      0, //dwState
+      '大连大有吴涛易语言软件开发有限公司', 'www.dywt.com.cn', '', //szAuthor,szHomePage,szOther
+      2, '0000分类1'#0'0000分类2'#0, //nCategoryCount, szzCategory
+      nil, nil, //pfnRunAddInFn, szzAddInFnInfo
+      nil, //pfnNotifyLib (can be nil, default to DefaultProcessNotifyLib)
+      nil, //szzDependFiles
+      nil  //pfnFreeLibData
+  );
+
+end.
+</pre>
+
+<p>将以上代码编译之后，即得到一个合法的空白的易语言支持库 myfne.fne，此支持库还没有任何功能，但可被易语言正常加载。请参考：<a href="#test_and_debug">测试和调试</a>。</p>
+
+<p>以上代码，是我们在 Delphi 自动生成的代码骨架的基础上添加修改而成。请注意以下几点：</p>
+<ul>
+  <li>引用(uses)了易语言官方提供的 e.pas（或 e.dcu）文件</li>
+  <li>通过编译指令（{$E fne}）指定了编译后的动态链接库的后缀名为"fne"（而非普通的"dll"）</li>
+  <li>定义并导出(exports)了支持库规范所要求的 GetNewInf() 函数</li>
+  <li>通过调用 DefineLib() 函数定义了支持库的基本信息</li>
+  <li>支持库名称（即 DefineLib() 的第一个参数）和支持库的文件名称没有关系，可分别任意取名（一般前者为中文后者为英文）</li>
+  <li>代码中用到的 GetLibInfo(), DefineLib() 等都是 e.pas 中定义的函数/过程（如果有兴趣，不妨看看它们的内部实现代码）</li>
+  <li>begin 段中的代码将在支持库被加载时自动执行</lib>
+</ul>
+
+<p>为了扩充这个空白的支持库，我们需要增加其它的代码。又为了保持代码的相对独立，我们把新增加的代码放在一个新创建的 Unit1.pas 文件中：</p>
+<pre>
+unit Unit1;
+
+interface
+
+uses e;
+
+implementation
+
+initialization
+
+  DefineConst('常量一', 'const1', '这个常量一的说明，文本常量', CT_TEXT, 0, '常量一的值(文本)');
+  DefineConst('常量二', 'const2', '这个常量二的说明，数值常量', CT_NUM, 1999, nil);
+  DefineConst('常量三', 'const3', '这个常量三的说明，逻辑常量', CT_BOOL, 1, nil);
+
+end.
+</pre>
+<p>以上代码，是我们在 Delphi 自动生成的代码骨架的基础上添加修改而成。请注意以下几点：</p>
+<ul>
+  <li>引用(uses)了 e.pas（或 e.dcu）文件</li>
+  <li>在 initialization 段中调用了 DefineConst()，定义了三个易语言常量</li>
+  <li>DefineConst() 是 e.pas 中定义的函数/过程</li>
+  <li>initialization 段中的代码将在支持库加载时自动执行</li>
+</ul>
+
+<p>再次编译支持库，其中将多出三个常量。</p>
+<p>注意：<a href="#initialization">慎用 initialization 段</a>，尤其是工程中存在多个 .pas 文件的情况。</p>
+
+
+<a name="datatypes"></a>
+<h1>数据类型</h1>
+<p>这一节主要介绍易语言支持库中，数据类型的标识，和数据类型的存储。</p>
+<a name="datatype_id"></a>
+<h2>数据类型标识</h2>
+<p>在易语言支持库中，使用特定的数值来标识各种数据类型。在定义命令的返回值类型、参数类型、成员类型等需要指定数据类型的地方，均需指定相应的标识数值。</p>
+<p>以下是易语言基本数据类型与其标识数值对照表：</p>
+
+<table border="1">
+  <tr><td><b>基本类型</b><td/><td><b>标识</b></td><td><b>说明</b></td></tr>
+  <tr><td>字节型<td/><td>SDT_BYTE</td><td>SDT_* 等是 e.pas 中定义的数值常量，下同</td></tr>
+  <tr><td>短整数型<td/><td>SDT_SHORT</td><td>&nbsp;</td></tr>
+  <tr><td>整数型<td/><td>SDT_INT</td><td>&nbsp;</td></tr>
+  <tr><td>长整数型<td/><td>SDT_INT64</td><td>&nbsp;</td></tr>
+  <tr><td>小数型<td/><td>SDT_FLOAT</td><td>&nbsp;</td></tr>
+  <tr><td>双精度小数型<td/><td>SDT_DOUBLE</td><td>&nbsp;</td></tr>
+  <tr><td>逻辑型<td/><td>SDT_BOOL</td><td>&nbsp;</td></tr>
+  <tr><td>日期时间型<td/><td>SDT_DATE_TIME</td><td>&nbsp;</td></tr>
+  <tr><td>文本型<td/><td>SDT_TEXT</td><td>&nbsp;</td></tr>
+  <tr><td>字节集<td/><td>SDT_BIN</td><td>&nbsp;</td></tr>
+  <tr><td>子程序指针<td/><td>SDT_SUB_PTR</td><td>&nbsp;</td></tr>
+  <tr><td>条件语句型<td/><td>SDT_STATMENT</td><td>&nbsp;</td></tr>
+</table>
+
+<p>此外还有两个特殊标识：_SDT_NULL 表示无类型；_SDT_ALL 表示任意类型。这两个标识通常只在定义命令返回值类型或参数类型时使用。</p>
+<p>每个支持库都可以引用核心支持库中定义的数据类型。核心库中定义的各数据类型的标识数值为 e.pas 中定义的 DTP_* 系列常量。</p>
+<p>每个支持库都可以引用本支持库定义的数据类型。本支持库中定义的数据类型的标识数值为：类型索引 + 1，其中类型索引为 <a href="#definedatatype">DefineDatatype()</a>, <a href="#defineenumdatatype">DefineEnumDatatype()</a>, <a href="#defineuidatatype">DefineUIDatatype()</a> 等函数的返回值。</p>
+<p>任何支持库都无法引用除核心支持库以外的其它支持库中定义的数据类型。</p>
+
+<a name="data"></a>
+<h2>数据存储格式</h2>
+<p>每种数据类型数据的存储格式（用对应的C++数据类型说明）：</p>
+<p>A、如果不为数组：</p>
+<table border="1">
+<tr><td><b>类型标识</b></td><td><b>说明</b></td></tr>
+<tr><td>SDT_BYTE</td><td>BYTE</td></tr>
+<tr><td>SDT_SHORT</td><td>SHORT</td></tr>
+<tr><td>SDT_INT</td><td>INT</td></tr>
+<tr><td>SDT_INT64</td><td>INT64</td></tr>
+<tr><td>SDT_FLOAT</td><td>FLOAT</td></tr>
+<tr><td>SDT_DOUBLE</td><td>DOUBLE</td></tr>
+<tr><td>SDT_DATE_TIME</td><td>DATE</td></tr>
+<tr><td>SDT_BOOL</td><td>BOOL</td></tr>
+<tr><td>SDT_TEXT</td><td>为一个指针，指针指向以0结束的字符串数据，如果指针值为NULL表示为空串</td></tr>
+<tr><td>SDT_BIN</td><td>为一个指针，如果为NULL表示为空字节集。指针所指向的数据格式等同于字节数组，即：1、一个恒定为数值1的INT；2、一个INT记录数据的长度；3、相应长度的数据。</td></tr>
+<tr><td>窗口单元和菜单数据类型</td><td>1、一个DWORD记录窗口模板ID；2、一个DWORD记录窗口单元/菜单项的ID。</td></tr>
+<tr><td>复合数据类型<br/>（即非窗口单元和菜单的用户或库定义数据类型）</td><td>为一个必定不为NULL的指针值，该指针所指向的数据格式为：顺序排列所有成员，注意任何成员如果数据尺寸小于4个字节，都会被自动对齐到4个字节。如以下复合类型：字节型A, 短整数型B, 整数型C，则整个复合类型所占用的空间为 12 个字节，其中 A 和 B 都被对齐到 4 个字节，因此 B 从第 4 个字节开始，C 从第 8 个字节开始。</td></tr>
+</table>
+
+<p>B、如果为数组：</p>
+<p>为一个必定不为NULL的指针值，该指针所指向的数据格式为：</p>
+<p>
+        1、一个INT记录该数组的维数（必定大于0）。
+
+        2、对应数目的INT值顺序记录对应维的成员数目（必定大于0）。
+
+        3、数组数据本身，格式为：
+
+            A、SDT_TEXT、SDT_BIN：
+
+               为指针数组，每个指针都指向一个单独的数据成员地址（注意指针值可能为NULL，
+
+               此时表示为一个空文本或者空字节集）。
+
+            B、窗口单元、菜单数据类型和简单数据类型：
+
+               为不为数组情况下数据的顺序排列；
+
+            C、复合数据类型：
+
+               为指针数组，每个指针都指向一个单独的数据成员地址。
+</p>
+
+<p>C、注意：访问任何数据时，注意只能访问等同该数据长度（即非对齐长度）的数据。比如读写一个字节型数据，只能假设只有此一个字节是可以访问的。
+有此限制的原因是当以传址的方式将一个数组成员的指针传递到下一个子程序时，该指针处只有数组成员实际长度是可供访问的（数组成员不会以4字节对齐）。</p>
+
+
+<a name="definelib"></a>
+<h1>定义支持库信息</h1>
+<p>我们通过调用 e.pas 中提供的 DefineLib() 函数，定义支持库的基本信息。调用代码通常位于 .dpr 文件的 begin 段中（如前面的例子），也可在任意 .pas 文件的 initialization 段中。</p>
+<pre>
+  DefineLib
+  (
+      'myfne', '{5CAFDDB6-22E7-4B27-823A-A80A3919189F}', //szName, szGuid
+      'Delphi开发的一个简单的易语言支持库，主要用于演示。', //szExplain
+      1, 0, 1, __GBK_LANG_VER, //nMajorVersion, nMinorVersion, nBuildNumber, nLanguage
+      0, //dwState
+      '大连大有吴涛易语言软件开发有限公司', 'www.dywt.com.cn', '', //szAuthor,szHomePage,szOther
+      2, '0000分类1'#0'0000分类2'#0, //nCategoryCount, szzCategory
+      nil, nil, //pfnRunAddInFn, szzAddInFnInfo
+      nil, //pfnNotifyLib (can be nil, default to DefaultProcessNotifyLib)
+      nil, //szzDependFiles
+      nil  //pfnFreeLibData
+  );
+</pre>
+<p>DefineLib() 这个函数看似参数很多，但多是文本信息，通常可以照抄再稍加修改。</p>
+<p>DefineLib() 的参数依次为：支持库名称(szName)，支持库的数字签名(szGuid)，支持库说明(szExplain)，
+主版本号(nMajorVersion)，次版本号(nMinorVersion)，构建版本号(nBuildNumber)，所支持语言（简体中文? 繁体中文? 英语?）(nBuildNumber)，状态值(dwState)，
+支持库作者(szAuthor)，作者网站(szHomePage)，其它文本信息(szOther)，命令分类个数(nCategoryCount)，命令分类信息文本(szzAddInFnInfo)，
+实现插件功能的处理函数(pfnRunAddInFn)，插件描述文本(szzAddInFnInfo)，接收系统通知的处理函数(pfnNotifyLib)，支持库依赖的其它文件(szzDependFiles)，支持库被卸载时的处理函数(pfnFreeLibData)。
+后面五个参数均可为 nil。
+</p>
+
+<p>关于支持库的数字签名：要求提供一个 GUID 文本。在 Delphi 中按下热键 Ctrl + Shift + G，可在当前光标处自动生成类似如下文本 ['{5CAFDDB6-22E7-4B27-823A-A80A3919189F}']，去除两端的方括号[]，即为我们所需的GUID文本。每个支持库应该有一个唯一的GUID，并且维持不变。</p>
+<p>关于支持库的版本号：易语言通常将支持库版本号显示为 a.b#c（如 1.2#3），其中 a b c 分别表示 主、次、构建版本号。每次升级支持库，应该至少升级一个版本号，如果升级会导致帮助文档改变，需至少升级次版本号。</p>
+<p>关于支持库的状态值：通常可为0，已默认设定 _LIB_OS(__OS_WIN)。另请参考状态值专题。</p>
+<p>关于支持库的命令分类信息：在易语言中，通常将命令（子程序）分类显示（如核心库中分为“流程控制”“算术运算”“文本操作”等）。每个分类名称的前四个字符必须是4个数字，用于指定此分类所用的图片索引号，0000表示使用默认图片。此类信息还需与命令的所属分类索引配合使用，详见下文。请注意上面例子中“以#0分隔以两个#0结尾”的特殊文本的表示方法。</p>
+<p>关于接收系统通知的处理函数：通常可为nil，表示自动处理易语言系统通知。除非有特殊需求，一般不需要自定义此处理函数。</p>
+<p>关于支持库被卸载时的处理函数：此机制可能暂时无效。</p>
+
+
+<a name="defineconst"></a>
+<h1>定义常量</h1>
+<p>我们通过调用 e.pas 中提供的 DefineConst() 函数，定义一个常量。调用代码可在任意 .pas 文件的 initialization 段中，也可在 .dpr 文件的 begin 段中，或其它合适的地方，下同。</p>
+<pre>
+  DefineConst('常量一', 'const1', '这个常量一的说明，文本常量', CT_TEXT, 0, '常量一的值(文本)');
+  DefineConst('常量二', 'const2', '这个常量二的说明，数值常量', CT_NUM, 1999, nil);
+  DefineConst('常量三', 'const3', '这个常量三的说明，逻辑常量', CT_BOOL, 1, nil);
+</pre>
+<p>以上是三个定义常量的示例，分别定义了一个文本型常量、一个数值型常量和一个逻辑型常量。</p>
+<p>DefineConst() 的参数依次为：常量名称，英文名称，说明，常量类型，数值型值，文本型值。</p>
+<p>关于常量的类型：可为 CT_TEXT, CT_NUM, CT_BOOL 三者之一，分别表示文本型、数值型和逻辑型。
+如果为文本型，需通过最后一个参数指定文本值；如果为数值型，需通过倒数第二个参数指定小数值或整数值；如果为逻辑型，需通过倒数第二个参数为0或1指定逻辑值（0表示假，1表示真）。</p>
+
+<p>提示，在易语言程序中使用常量的语法为：#常量名称。</p>
+<p>提示，请尽量优先选择定义<a href="#defineenumdatatype">枚举类型</a>，而非常量。因为常量更容易导致全局名称混乱。</p>
+
+<a name="definecommand"></a>
+<h1>定义命令 / 子程序</h1>
+<p>易语言中的命令（或称子程序），大致等同于其它编程语言中的全局函数。</p>
+<p>定义易语言命令（子程序），涉及到：定义命令信息，定义命令参数，定义命令实现函数。
+通常，我们将命令参数和命令实现函数的定义放在一起，便于互相参照（注：从命令的实现函数中不能明确地看到命令的参数信息）。</p>
+
+<a name="commandinfo"></a>
+<h2>定义命令信息</h2>
+<p>我们通过调用 e.pas 中提供的 DefineCommand() 函数，定义一个命令。
+<pre>
+  DefineCommand(Command1, Command1_Args, '命令一', 'command1', '返回两个参数的和', SDT_INT, 0, LVL_SIMPLE, 1);
+  DefineCommand(Command2, [], '命令二', 'command2', '直接返回真', SDT_BOOL, 0, LVL_SIMPLE, 1);
+</pre>
+<p>以上代码是两个定义命令信息的示例。命令一有参数，返回整数型；命令二没有参数，返回逻辑型。</p>
+<p>DefineCommand() 的参数依次为：命令实现函数，命令参数，命令名称，命令英文名称，命令说明，返回值类型，状态值，难度等级，所属分类。</p>
+<p>关于实现函数和参数：详见下文。对于命令一，DefineCommand() 的第二个参数值 Command1_Args 将在下文定义，它是一个数组常量，定义了命令一的各参数信息。对于命令二，DefineCommand() 的第二个参数为 []，表示此命令没有参数。</p>
+<p>关于返回值类型：请参考数据类型标识专题。</p>
+<p>关于状态值：可为0，也可使用 CT_IS_HIDED, CT_IS_ERROR, CT_DISABLED_IN_RELEASE, CT_ALLOW_APPEND_NEW_ARG, CT_RETRUN_ARY_TYPE_DATA 等，详见 e.pas。已默认设定 _CMD_OS(__OS_WIN)。另见状态值专题。</p>
+<p>关于难度等级：可为 LVL_SIMPLE, LVL_SECONDARY, LVL_HIGH 三者之一。</p>
+<p>关于所属分类：指定本命令属于本支持库中哪个分类，通常为大于等于1的数值，1表示属于第一个命令分类，2表示第二个，依次类推，但不应大于总的分类个数。</p>
+
+<a name="command_args_and_impl"></a>
+<h2>定义命令参数及其实现函数</h2>
+<p>以下是上面两个命令的参数和实现函数定义：</p>
+<pre>
+const Command1_Args: array[0..1] of ARG_INFO = 
+  (
+    (m_szName:'参数1'; m_szExplain:''; m_shtBitmapIndex:0; m_shtBitmapCount:0; m_dtDataType:SDT_INT; m_nDefault:0; m_dwState:0),
+    (m_szName:'参数2'; m_szExplain:''; m_shtBitmapIndex:0; m_shtBitmapCount:0; m_dtDataType:SDT_INT; m_nDefault:0; m_dwState:0)
+  );
+procedure Command1(pRetData: pMDATA_INF; nArgCount: Integer; pArgInf: pMDATA_INF); cdecl;
+begin
+  pRetData.m_Value.m_int := ArgArray(pArgInf)[0].m_Value.m_int + ArgArray(pArgInf)[1].m_Value.m_int;
+end;
+
+procedure Command2(pRetData: pMDATA_INF; nArgCount: Integer; pArgInf: pMDATA_INF); cdecl;
+begin
+  pRetData.m_Value.m_bool := ETrue;
+end;
+</pre>
+<p>关于以上代码，说明如下：</p>
+<ul>
+  <li>Command1_Args 是一个 ARG_INFO 类型的数组常量，它定义的是命令一的各参数信息。上文已将其作为第二个参数传入 DefineCommand()。</li>
+  <li>Command1(), Command2() 分别是命令一和命令二的实现函数。</li>
+</ul>
+
+<p>关于命令的参数定义的说明：</p>
+<p>它是一个 ARG_INFO 类型的数组常量，使用 Delphi 标准语法定义（见上面示例）。</p>
+<p>结构体 ARG_INFO 的各成员依次为：参数名称(m_szName)，参数说明(m_szExplain)，参数图片索引(m_shtBitmapIndex)，参数图片个数(m_shtBitmapCount)，参数类型(m_dtDataType)，参数默认值(m_nDefault)，状态值(m_dwState)。</p>
+<p>其中参数图片索引和参数图片个数可为0。参数类型请参考<a href="#datatypes">数据类型</a>。</p>
+<p>参数默认值仅当状态值为 AS_HAS_DEFAULT_VALUE 时有效，可指定数值型、逻辑型（0表示假，1表示真）、文本型（文本首地址）参数的默认值。
+<p>参数的状态值可为0，也可使用以下值：AS_HAS_DEFAULT_VALUE, AS_DEFAULT_VALUE_IS_EMPTY, AS_RECEIVE_VAR, AS_RECEIVE_VAR_ARRAY, AS_RECEIVE_VAR_OR_ARRAY, AS_RECEIVE_ARRAY_DATA, AS_RECEIVE_ALL_TYPE_DATA, AS_RECEIVE_VAR_OR_OTHER，详见 e.pas 中的说明。另请参考状态值专题。</p>
+
+<p>关于命令的实现函数的说明：</p>
+<p>所有命令的实现函数的原型都必须是：<span style="background-color:#eeeeee">procedure (pRetData: pMDATA_INF; nArgCount: Integer; pArgInf: pMDATA_INF); cdecl;</span></p>
+<p>参数 pRetData 用于接收命令的返回值，欲返回某值，只需对该参数中的相应成员赋值。</p>
+<p>参数 nArgCount 指定的本命令接收到的实际参数个数。对于具有扩展参数的命令(CT_ALLOW_APPEND_NEW_ARG)，或对于升级后增加了命令参数的情况，此参数尤为有用。</p>
+<p>参数 pArgInf 是记录了本命令所有参数值的 MDATA_INF 结构体数组的内存首地址。通常可将其转型到 ArgArray 以便于使用其中各参数值，例如上面已经出现过的代码。</p>
+<pre>
+  pRetData.m_Value.m_int := ArgArray(pArgInf)[0].m_Value.m_int + ArgArray(pArgInf)[1].m_Value.m_int;
+</pre>
+<p>结构体 pMDATA_INF 中的 m_dtDataType 成员记录了数据类型，m_Value 成员中记录了各种类型的值。如果数据类型是确定的，可直接读写 m_Value 中的相应成员；否则需根据 m_dtDataType 确定应读写 m_Value 中的哪个成员。</p>
+
+<a name="defineenumdatatype"></a>
+<a name="defineenumelement"></a>
+<h1>定义枚举类型</h1>
+<p>枚举类型是易语言数据类型中的一种。枚举类型中的成员全部都是整数型常量成员。</p>
+<p>在支持库中定义一个枚举类型，涉及到：定义枚举类型信息，定义枚举类型成员。</p>
+<p>我们首先通过调用 e.pas 中提供的 DefineEnumDatatype() 函数/过程，定义一个枚举类型的基本信息；然后通过多次调用 DefineEnumElement() 定义枚举类型成员：</p>
+<pre>
+procedure DefineEnum1();
+var datatypeIndex: Integer;
+begin
+  datatypeIndex := DefineEnumDatatype('枚举一', 'Enum1', '关于枚举一的说明', 0);
+
+  DefineEnumElement(datatypeIndex, 'A', 'constA', '', 1001, 0);
+  DefineEnumElement(datatypeIndex, 'B', 'constB', '', 1002, 0);
+  DefineEnumElement(datatypeIndex, 'C', 'constC', '', 1003, 0);
+end;
+</pre>
+<p>如上面代码所示，一般将“定义一个完整类型”的代码放在一个独立的函数/过程中（如此处的 DefineEnum1()），然后在 initialization 段中或其它合适的地方调用之。这样做通常可增加代码可读性。</p>
+
+<p>DefineEnumDatatype() 用于定义枚举类型信息，并返回新的类型索引。其参数依次为：枚举类型名称，英文名称，说明，状态值。其中状态值通常可为0，已默认设定 LDT_ENUM 和 _DT_OS(__OS_WIN)，另见状态值专题。</p>
+<p>DefineEnumElement() 用于定义枚举成员信息，其参数依次为：枚举类型索引（即 DefineEnumDatatype() 的返回值），枚举成员名称，英文名称，说明，枚举值，状态值。其中状态值通常可为0，已默认设定 LES_HAS_DEFAULT_VALUE，另见状态值专题。</p>
+
+<p>提示，在易语言中使用枚举类型的语法为：#枚举类型名称.成员名称。</p>
+
+
+<a name="definedatatype"></a>
+<h1>定义普通类型</h1>
+<p>易语言中的普通类型为，可以具有方法成员和数据成员的数据类型。它是非窗口组件，没有窗口句柄，没有属性和事件，不能进行可视化设计。</p>
+<p>在支持库中定义一个普通类型，涉及到：定义普通类型信息，定义方法，定义数据成员。</p>
+<p>首先，我们通过调用 e.pas 中提供的 DefineDatatype() 函数/过程，定义普通类型的基本信息；然后，通过多次调用 DefineMethod() 定义此类型的方法，通过多次调用 DefineElement() 定义此类型的数据成员。完整示例代码如下：</p>
+<pre>
+procedure Datatype1_Method1 (pRetData: pMDATA_INF; nArgCount: Integer; pArgInf: pMDATA_INF); cdecl;
+begin
+  pRetData.m_Value.m_int := 2008;
+end;
+
+procedure DefineDatatype1();
+var datatypeIndex : integer;
+begin
+  datatypeIndex := DefineDatatype('普通类型一', 'Datatype1', 'about Datatype1', 0);
+
+  DefineMethod(datatypeIndex, Datatype1_Method1, [], '方法一', 'Method1', '', SDT_INT, 0, LVL_SIMPLE);
+  DefineMethod(datatypeIndex, Datatype1_Method1, [], '方法二', 'Method2', '', SDT_INT, 0, LVL_SIMPLE);
+
+  DefineElement(datatypeIndex, '整数成员', 'element1', '', SDT_INT, nil, 0, 0);
+  DefineElement(datatypeIndex, '文本成员', 'element2', '', SDT_TEXT, nil, 0, 0);
+end;
+</pre>
+<p>如上面代码所示，一般将“定义一个完整类型”的代码放在一个独立的函数/过程中（如此处的 DefineDatatype1()），然后在 initialization 段中或其它合适的地方调用之。这样做通常可增加代码可读性。</p>
+
+<p>DefineDatatype() 用于定义类型信息，并返回新定义的类型索引。其参数依次是：类型名称，英文名称，说明，状态值。其中状态值可为0，已默认设定 _DT_OS(__OS_WIN)。</p>
+<p>DefineMethod() 用于定义类型的方法，其用法与定义命令时使用的 DefineCommand() 非常类似，只是多了第一个参数，类型索引，用于指定为哪个类型定义方法。
+方法的参数定义、方法的实现函数等，都与定义命令时的用法一致。只有唯一一点重要区别：方法实现函数的 pArgInf 参数数组的第一个成员用于记录类型自身数据（类似于Delphi中的self或C++中的this），后面的成员才真正是方法的参数，这意味着方法实现函数中 nArgCount 参数接收到的数值，必然总是等于方法实际接收的参数个数值加一。</p>
+<p>DefineElement() 用于定义类型的成员，其参数依次为：类型索引（即 DefineDatatype() 的返回值），成员名称，英文名称，说明，数据类型，数组定义，状态值，默认值。其中，数组定义可为nil，状态值可为0。用这种方法定义的数据成员，可以在易语言程序中任意读写它的值，定义者和使用者均不需要关心数据的存储方式。</p>
+<p>请参考：<a href="#datatypes">数据类型</a>，<a href="states">状态值</a>。</p>
+
+
+<a name="defineuidatatype"></a>
+<h1>定义窗口组件类型</h1>
+<p>易语言的窗口组件，有窗口句柄，有属性、方法、事件，其图标会出现在易语言工具箱中，可进行可视化界面设计。</p>
+<p>开发窗口组件类型，比开发枚举类型和普通类型要复杂的多，下面一一道来。</p>
+
+<a name="uiwraper"></a>
+<h2>定义包装类</h1>
+<p>首先需定义一个类，继承自您要封装的VCL控件类。（例如，想把Delphi中的TPanel封装为易语言控件，则继承自TPanel。）</p>
+<p>这个类的主要功能应该包括：1、具有被封装控件的所有功能（因为是继承再来，自动拥有）；2、记录易语言控件的相关信息；3、接受VCL事件并转发给易语言；4、记录易语言控件的属性值，并负责序列化所有属性值。其中第4点也可放到另外一个单独的类中实现。</p>
+<p>这个类是VCL控件与易语言系统交流的纽带。</p>
+<pre>
+type
+  TMyPanel = class(TPanel)
+  public
+    FWinFormID, FUnitID: Cardinal;
+    FInDesignMode: EBool;
+  public
+    function SaveProperties(): HGLOBAL;
+    function LoadProperties(Data: PBYTE; Size: Integer): Boolean;
+  public
+    procedure WndProc(var msg: TMessage); override;
+    procedure CallBaseWndProc(var msg: TMessage);
+  end;
+</pre>
+<p>对以上的代码说明如下：</p>
+<p>继承自 TPanel，生成一个新的类型 TMyPanel。</p>
+<p>类成员 FWinFormID, FUnitID, FInDesignMode 分别记录相应易语言控件中相关信息：所在窗口ID，控件自身ID，是否处于设计状态。这些信息是由易语言IDE提供的。</p>
+<p>类方法 SaveProperties(), LoadProperties() 负责序列化本控件的所有属性值，即，前者将所有属性值写入一个内存区域中，后者从一个内存区域中读取先前写入的所有属性值。下文还要深入探讨。</p>
+<p>类方法 WndProc(), CallBaseWndProc() 是为了简化代码编写而引入的，这两个方法的实现代码都是固定的，且非常简单，直接复制即可：</p>
+<pre>
+procedure TMyPanel.WndProc(var msg: TMessage);
+begin
+  ELib_WinControlWndProc(self, msg, CallBaseWndProc);
+end;
+
+procedure TMyPanel.CallBaseWndProc(var msg: TMessage);
+begin
+  inherited WndProc(msg);
+end;
+</pre>
+<p>（上面的代码中，ELib_WinControlWndProc() 做了很多重要的工作，有兴趣的可以看看。不关心也行，反正它工作的很好。）</p>
+
+<a name="uiinterfaces"></a>
+<h2>定义接口函数</h1>
+<p>易语言支持库为易语言的窗口组件设计了一系列接口函数。组件要分别实现自己的接口函数，注册给易语言系统，供后者调用。这在开发窗口组件过程中，是至关重要的一步。</p>
+<p>这些接口函数有：</p>
+<ul>
+  <li>创建组件时调用的函数，PFN_CREATE_UNIT</li>
+  <li>组件的属性被读取时调用的函数，PFN_GET_PROPERTY_DATA</li>
+  <li>组件的属性被修改时调用的函数，PFN_NOTIFY_PROPERTY_CHANGED</li>
+  <li>获取组件所有属性值时调用的函数，PFN_GET_ALL_PROPERTY_DATA</li>
+  <li>决定组件属性是否可用时调用的函数，PFN_PROPERTY_UPDATE_UI</li>
+  <li>弹出自定义属性编辑对话框时调用的函数，PFN_DLG_INIT_CUSTOMIZE_DATA</li>
+  <li>……</li>
+</ul>
+<p>第一项是必须的。通常前四项是必要的，其它的可以省略。</p>
+<p>所有接口函数，都有各自的函数原型，其参数和返回值都有明确的规定，详见 e.pas 文件，下文也会有所涉及。</p>
+<p>再次说明，这些接口函数是供易语言系统调用的，参数由易语言系统传入。组件开发者只需在接口函数内部完成相应功能，并返回相应值即可。</p>
+<p>通常通过 DefineUIDatatype() 将这些接口函数告知易语言系统。请参考：<a href="#uidatatypeinfo">定义窗口组件信息</a>。</p>
+
+<a name="PFN_CREATE_UNIT"></a>
+<h3>创建组件时调用的函数，PFN_CREATE_UNIT</h3>
+<p>此接口函数将在创建组件时被调用。具体来说，其被调用时机为：将组件从工具箱拖放到设计窗体上时；预览设计窗体时；程序运行过程中组件所在窗口被创建时；打开一个.e文件并显示组件所在窗口时，……。</p>
+<p>典型代码如下：</p>
+<pre>
+function MyPanel_OnCreate(
+    pAllData: PBYTE; nAllDataSize: Integer;
+    dwStyle,hParentWnd,uID,hMenu: Cardinal; x,y,cx,cy: Integer;
+    dwWinFormID,dwUnitID,hDesignWnd: Cardinal; blInDesignMode: EBool
+  ): HUNIT; stdcall;
+var
+  Panel: TMyPanel;
+begin
+  Panel := TMyPanel(ELib_CreateControl(Result, TMyPanel, dwStyle, hParentWnd, x, y, cx, cy));
+  if Result = 0 then exit;
+
+  with Panel do
+  begin
+    FWinFormID := dwWinFormID;
+    FUnitID := dwUnitID;
+    FInDesignMode := blInDesignMode;
+  end;
+
+  Panel.LoadProperties(pAllData, nAllDataSize);
+end;
+</pre>
+<p>首先注意函数原型，返回值类型为HUNIT，参数中提供了窗口风格(dwStyle)、父窗口句柄(hParentWnd)、位置和大小(x,y,cx,cy)、属性数据(pAllData,nAllDataSize)、所在窗口ID(dwWinFormID)、组件ID(dwUnitID)、是否处于设计模式(blInDesignMode)等信息。</p>
+<p>这个函数通常做以下几方面的工作：</p>
+<p>1、创建窗口组件，并返回其 HUNIT 句柄。一般通过调用 ELib_CreateControl() 创建窗口组件，它会帮助我们做很多工作。注意 ELib_CreateControl() 的会将窗口组件的 HUNIT 句柄并通过第一个参数输出。</p>
+<p>2、记录 dwWinFormID, dwUnitID, blInDesignMode 的值，以备后用。发送易语言事件时将用到 dwWinFormID, dwUnitID。</p>
+<p>3、从 pAllData 和 nAllDataSize 指定的数据中加载窗口组件的所有属性值。一般来说，将组件从工具箱拖放到设计窗体上时，pAllData为nil，其它情况下（见上文）不为NULL。</p>
+
+<a name="PFN_GET_PROPERTY_DATA"></a>
+<h3>读取组件属性时调用的函数，PFN_GET_PROPERTY_DATA</h3>
+<p>此接口函数将在需要获取组件属性值时被调用。具体来说，其被调用时机为：易语言IDE中属性表刷新时；易语言程序中执行到访问组件属性的代码（如：编辑框1.内容）时。</p>
+<p>此接口函数的功能是，根据参数指定的属性索引，返回相应属性的值。第一个属性的索引为0，后面属性的索引依次为1,2,3...，此处不包括所有组件的固有属性（如“名称”“标记”“可视”等）。</p>
+<p>典型代码如下：</p>
+<pre>
+function MyPanel_OnGetProperty(
+    hUnit: HUNIT; nIndex: Integer; pValue: PUNIT_PROPERTY_VALUE
+  ): EBool; stdcall;
+var
+  control: TMyPanel;
+begin
+  Result := EFalse;
+  if hUnit = 0 then exit;
+
+  control := TMyPanel(ELib_GetControl(hUnit));
+  if control = nil then exit;
+
+  case nIndex of
+    0: begin //底色
+      pValue.m_clr := ELib_ToEBackColor(control.Color);
+    end;
+  end;
+
+  Result := ETrue;
+end;
+</pre>
+<p>如代码所示，首先调用 ELib_GetControl() 组件包装类的对象引用，获取属性值显示需要访问此对象。接下来，往往需要一个大的 case of 语句，判断需要返回哪个属性的值，然后将相应属性值写入参数 pValue 即可，返回 ETrue 表示操作成功。</p>
+
+<a name="PFN_NOTIFY_PROPERTY_CHANGED"></a>
+<h3>修改组件属性时调用的函数，PFN_NOTIFY_PROPERTY_CHANGED</h3>
+<p>此接口函数将在需要修改组件属性值时被调用。具体来说，其被调用时机为：用户通过易语言IDE中的属性表修改了某个属性的值时；易语言程序执行到对组件属性赋值的语句（如：编辑框1.内容 = ""）时。</p>
+<p>此接口函数的功能是，将参数指定的属性值写入控件中，并体现到用户界面上。有时需要将此属性值记录到包装类内的某个成员中，有时不用，视具体情况而定。</p>
+<p>典型代码如下：</p>
+<pre>
+function MyPanel_OnSetProperty(
+    hUnit: HUNIT; nIndex: Integer;
+    pValue: PUNIT_PROPERTY_VALUE; ppszTipText: PPCHAR
+  ): EBool; stdcall
+var
+  control: TMyPanel;
+begin
+  Result := EFalse;
+  if hUnit = 0 then exit;
+
+  control := TMyPanel(ELib_GetControl(hUnit));
+  if control = nil then exit;
+
+  case nIndex of
+    0: begin // 底色
+      control.Color := ELib_FromEBackColor(pValue.m_clr);
+    end;
+  end;
+end;
+</pre>
+<p>注意，此接口函数的返回值含义为是否需要重新创建组件窗口。如果需要重新创建，请返回ETrue（将导致重新执行“<a href="#PFN_CREATE_UNIT">创建组件</a>”接口函数），一般情况下返回EFalse。</p>
+
+<a name="PFN_GET_ALL_PROPERTY_DATA"></a>
+<h3>获取组件所有属性值时调用的函数，PFN_GET_ALL_PROPERTY_DATA</h3>
+<p>此接口函数将在需要获取组件所有属性值时被调用。具体来说，其被调用时机为：保存 .e 文件时；预览设计窗口时。</p>
+<p>此接口函数的功能是，将组件的所有属性值打包存储到一个自定义格式的内存块中，返回其 HGLOBAL 句柄。下次再创建此组件时，处此生成的记录组件所有属性值的内存块，将作为参数(pAllData, nAllDataSize)传入<a href="#PFN_CREATE_UNIT">组件创建函数</a>，组件开发者需从中解析出先前存储的所有属性值。</p>
+<p>典型代码如下：</p>
+<pre>
+function MyPanel_OnGetAllProperties (hUnit: HUNIT): HGLOBAL; stdcall;
+var
+  control: TMyPanel;
+begin
+  Result := 0;
+  if hUnit = 0 then exit;
+
+  control := TMyPanel(ELib_GetControl(hUnit));
+  if control = nil then exit;
+
+  Result := control.SaveProperties();
+end;
+</pre>
+<p>实现具体功能的代码被转交给包装类的 SaveProperties() 方法，OK，后面介绍。</p>
+
+<a name="PFN_PROPERTY_UPDATE_UI"></a>
+<h3>确定属性是否可用时调用的函数，PFN_PROPERTY_UPDATE_UI</h3>
+<p>此接口函数将在需要确定某属性是否可用时被调用。一般来说，涉及到刷新显示属性表的情况，都会调用本接口函数。</p>
+<p>此接口函数仅在设计期有效，在运行期无效。</p>
+<p>此接口函数可为被省略，如果被省略，默认为所有属性均可用。</p>
+<p>属性“可用”表示该属性值目前是生效的；属性“不可用”表示该属性值目前不生效。“不可用”的属性在属性表中一般以灰色文字作为标识。</p>
+<p>典型代码如下：</p>
+<pre>
+function MyPanel_OnPropertyUpDateUI(hUnit: HUNIT; nPropertyIndex: Integer): EBool; stdcall;
+var
+  control: TMyPanel;
+begin
+  Result := EFalse;
+  if hUnit = 0 then exit;
+
+  control := TMyPanel(ELib_GetControl(hUnit));
+  if control = nil then exit;
+
+  Result := ETrue;
+
+  if nPropertyIndex = 0 then begin
+    if ... then Result := EFalse;
+  end else if nPropertyIndex = 1 then begin
+    ...
+  end;
+end;
+</pre>
+<p>返回 ETrue 表示属性可用，返回 EFalse 表示属性不可用。</p>
+<p>在确定某个属性是否可用时，往往需要依据其它属性的值。例如，图片框组件的“显示方式”属性仅在“图片”属性有数据时才可用。</p>
+
+<a name="PFN_DLG_INIT_CUSTOMIZE_DATA"></a>
+<h3>显示自定义属性编辑对话框时调用的函数，PFN_DLG_INIT_CUSTOMIZE_DATA</h3>
+<p>此接口函数在需要弹出一个自定义属性编辑对话框时被调用。具体来说，对于具有 UD_CUSTOMIZE 状态值的属性，用户在设计期双击其属性值，此接口函数即被调用。</p>
+<p>此接口函数仅在设计期有效，在运行期无效。</p>
+<p>如果组件中有自定义属性（具有 UD_CUSTOMIZE 状态值），必须提供本接口函数；否则可以省略。</p>
+<p>此接口函数的功能是，创建并显示一个对话框，让用户在其中进行各项操作，最终完成对自定义属性值的修改。</p>
+<p>注：自定义属性值是一块连续的内存数据，其具体格式由支持库开发人员确定，用户仅仅需要通过属性编辑对话框操作该数据，而不需要知道其存储格式。</p>
+
+<a name="other_uiinterfaces"></a>
+<h3>其它接口函数</h3>
+<p>取窗口的图标属性数据（ITF_GET_ICON_PROPERTY_DATA），询问组件是否需要指定的按键信息（ITF_IS_NEED_THIS_KEY），组件数据语言转换（ITF_LANG_CNV），消息过滤（ITF_MSG_FILTER），等，详见 e.pas 文件。</p>
+
+<a name="uidatatypeinfo"></a>
+<h2>定义窗口组件信息</h2>
+<p>调用 DefineUIDatatype() 定义窗口组件类型信息，调用 DefineProperty(), DefineEvent(), DefineMethod() 分别定义组件的属性、事件、方法。</p>
+<pre>
+procedure DefineMyPanel();
+var index: Integer;
+begin
+  index := DefineUIDatatype
+  (
+      '我的VCL面板', 'MyPanel', //szName, szEGName
+      '', //szExplain
+      LDT_IS_CONTAINER, 1, //dwState, dwUnitBmpID
+      nil, //pfnGetInterface
+      MyPanel_OnCreate, //onCreateUnit
+      MyPanel_OnGetProperty, //onGetPropertyValue
+      MyPanel_OnSetProperty, //onSetPropertyValue
+      MyPanel_OnGetAllProperties, //onGetAllPropertiesValue
+      MyPanel_OnPropertyUpDateUI, //onPropertyUpdateUI
+      nil, //onInitDlgCustomData
+      nil, //onGetIconPropertyValue
+      nil, //onIsNeedThisKey
+      nil, //onLanguageConv
+      nil, //onMsgFilter
+      nil  //onNotifyUnit
+  );
+
+  DefineProperty(index, '底色', 'BackColor', '背景颜色', UD_COLOR_BACK, 0, nil);
+
+  //DefineEvent(index, '事件名称', '事件的说明', 0, [], _SDT_NULL);
+
+  //DefineMethod(index, MyPanel_SetHint, VCLPanelSetHintArgs, '设置提示', 'SetHint', '', _SDT_NULL, 0);
+
+end;
+</pre>
+<p>DefineUIDatatype() 的前几个参数含义依次为：易语言组件名称，组件英文名称，说明，状态值，组件图标的位图资源ID。<p>
+<p>关于参数“组件图标的位图资源ID”，它是资源文件(*.res)中某个位图资源的数字编号。
+制作方式如下：用“Image Editor”（Delphi主菜单 Tools -> Image Editor）打开与工程文件同名的 *.res 文件，右键 New -> Bitmap，设定宽度和高度均为24，绘制位图，更名为纯数字名称（因为易语言IDE只接收数字ID），存盘。
+提示1：位图中的浅灰色(#CCCCCC)在易语言IDE中将被视为透明色；提示2：如果您使用Delphi7，建议关掉Delphi7后再用“Image Editor”保存 res 文件，否则工作成果可能丢失（也许是Delphi7的BUG）。
+</p>
+<p>DefineUIDatatype() 的后几个参数说明如下。pfnGetInterface 为“接口函数集中提供者”，易语言系统通过它可以获取所有接口函数。如果参数 pfnGetInterface 不为 nil，则以它为准，后面的参数全部忽略；如果 pfnGetInterface 为 nil，则必须通过后面的参数提供相应的接口函数。</p>
+
+<a name="property"></a>
+<h3>属性</h3>
+<p>用 DefineProperty() 为指定数据类型定义属性。</p>
+<pre>
+DefineProperty(index, '属性名称', '属性英文名称', '属性的说明', UD_INT, 0, nil);
+</pre>
+<p>DefineProperty() 参数含义依次为：所属数据类型索引，属性名称，属性英文名称，属性的说明，属性的类型，状态值，选项文本。</p>
+<p>当组件的属性值被读取和修改时，相应的接口函数被会调用。请参考：<a href="#PFN_GET_PROPERTY_DATA">读取属性</a>，<a href="#PFN_NOTIFY_PROPERTY_CHANGED">修改属性</a>。</p>
+
+<a name="event"></a>
+<h3>事件</h3>
+<p>用 DefineEvent() 为指定数据类型定义事件。</p>
+<pre>
+DefineEvent(index, '事件名称', '事件的说明', 0, [], _SDT_NULL);
+</pre>
+<p>DefineEvent() 参数含义依次为：所属数据类型索引，事件名称，事件的说明，状态值，事件处理函数的参数，事件处理函数的返回值类型。</p>
+<p>如果事件有参数，则按如下形式定义事件参数，并传入 DefineEvent()：</p>
+<pre>
+const OnSetEditTextHandlerArgs: array[0..2] of EVENT_ARG_INFO2 =
+  (
+    (m_szName: '行'; m_szExplain: ''; m_dwState: 0; m_dtDataType: SDT_INT;),
+    (m_szName: '列'; m_szExplain: ''; m_dwState: 0; m_dtDataType: SDT_INT;),
+    (m_szName: '值'; m_szExplain: ''; m_dwState: 0; m_dtDataType: SDT_TEXT;)
+  );
+</pre>
+
+<h4>接收VCL事件并转发给易语言</h4>
+<p>主要思路：在Delphi中接收VCL组件的事件，然后转发相应事件给易语言组件。</p>
+<p>首先在组件包装类中定义所需的事件处理函数：</p>
+<pre>
+procedure TVclGrid.OnColMovedHandler(Sender: TObject; FromIndex, ToIndex: Integer);
+var
+  EventData: EVENT_NOTIFY2;
+begin
+  Init_EVENT_NOTIFY2(EventData, FWinFormID, FUnitID, 0);
+  EventData.m_nArgCount := 2;
+  EventData.m_nArgValue[0].m_inf.m_Value.m_int := FromIndex;
+  EventData.m_nArgValue[1].m_inf.m_Value.m_int := ToIndex;
+  NotifySys(NRS_EVENT_NOTIFY2, Cardinal(@EventData), 0);
+end;
+</pre>
+<p>以上代码的主要工作就是，接收VCL组件的事件，获取事件参数，填充 EVENT_NOTIFY2 结构，发送通知 NRS_EVENT_NOTIFY2 给易语言运行时系统，最终触发易语言组件事件。</p>
+<p>其中 Init_EVENT_NOTIFY2() 的第二、三个参数（FWinFormID, FUnitID，来自<a href="#PFN_CREATE_UNIT">创建组件</a>接口函数）指定了欲触发哪个组件的事件，最后一个参数为欲触发的事件索引（>=0，取决于 DefineEvent() 的调用顺序）。</p>
+<p>如果易语言事件没有参数和返回值，则上面的事件转发代码可以大大简化，直接调用 NotifySimpleEvent() 即可：</p>
+<pre>
+procedure TVclFindDialog.FindDialogOnFind(Sender: TObject);
+begin
+  NotifySimpleEvent(FWinFormID, FUnitID, 0);
+end;
+</pre>
+<p>注，Init_EVENT_NOTIFY2(), NotifySys(), NotifySimpleEvent() 等函数均在 e.pas 中定义。</p>
+<p>有了事件处理函数，还需要将之绑定到组件上，以便接收VCL事件。这项工作一般在组件包装类中的覆写(override)的 Create(AOwner: TComponent) 方法中进行，如：</p>
+<pre>
+constructor TVclGrid.Create(AOwner: TComponent);
+begin
+  Inherited;
+  OnColumnMoved := OnColMovedHandler;
+  OnRowMoved := OnRowMovedHandler;
+  OnSelectCell := OnSelectCellHandler;
+end;
+</pre>
+
+<h4>事件参数为文本型的情况</h4>
+<pre>
+var
+  EventData: EVENT_NOTIFY2;
+  SomeText: String;
+  szText: PChar;
+begin
+  Init_EVENT_NOTIFY2(EventData, FWinFormID, FUnitID, 1);
+  EventData.m_nArgCount := 1;
+  EventData.m_nArgValue[0].m_inf.m_dtDataType := SDT_TEXT;
+  szText := PChar(SomeText);
+  EventData.m_nArgValue[0].m_inf.m_Value.m_ppText := @szText;
+  EventData.m_nArgValue[0].m_dwState := EAV_IS_POINTER;
+  NotifySys(NRS_EVENT_NOTIFY2, Cardinal(@EventData), 0);
+end;
+</pre>
+<p>注意文本参数需采用传址（EAV_IS_POINTER）形式，传入易语言运行时系统中的数据为文本指针的地址(m_ppText)。</p>
+<p>如果文本参数为参考型（EAS_BY_REF，允许易语言程序修改参数值），触发事件的代码与前面相似，但 szText 需通过 MMalloc() 分配空间（易语言运行时系统负责释放或扩充）。</p>
+
+<a name="method"></a>
+<h3>方法</h3>
+<p>定义数据类型的方法，与定义全局命令/子程序，方法基本一致。</p>
+<p>其区别是，前者用 DefineMethod()，后者用 DefineCommand()。</p>
+<p>DefineMethod() 与 DefineCommand() 的绝大多数参数含义都是相同的，只是前者多了第一个参数——所属数据类型索引：</p>
+<pre>
+  DefineMethod(index, TVclFindDialog_Open, [], '打开', 'Open', '', SDT_BOOL, 0);
+</pre>
+<p>请参考：<a href="#definecommand">定义命令/子程序</a>。</p>
+<pre>
+<p>定义方法实现函数：</p>
+procedure TVclFindDialog_Open(pRetData: pMDATA_INF; nArgCount: Integer; pArgInf: pMDATA_INF); cdecl;
+var control: TVclFindDialog;
+begin
+  pRetData.m_Value.m_bool := EFalse;
+  control := TVclFindDialog(ELib_GetControl(pArgInf));
+  if control = nil then exit;
+  pRetData.m_Value.m_bool := ELib_BooleanToEBool(control.FDialog.Execute());
+end;
+</pre>
+<p>如上面示例代码所示：我们调用 ELib_GetControl(pArgInf) 得到组件包装类的对象，进而通过该对象执行相应功能。</p>
+<p>如果方法有参数，按如下形式定义，并作为（第三个）参数传入 DefineMethod()：</p>
+<pre>
+const Command1_Args: array[0..1] of ARG_INFO = 
+  (
+    (m_szName:'参数1'; m_szExplain:''; m_shtBitmapIndex:0; m_shtBitmapCount:0; m_dtDataType:SDT_INT; m_nDefault:0; m_dwState:0),
+    (m_szName:'参数2'; m_szExplain:''; m_shtBitmapIndex:0; m_shtBitmapCount:0; m_dtDataType:SDT_INT; m_nDefault:0; m_dwState:0)
+  );
+</pre>
+<p>这与定义全局命令/子程序的参数是完全一致的。</p>
+
+<a name="serialize_properties"></a>
+<h2>属性的序列化</h2>
+<p>
+易语言组件必须提供一种机制，可以将组件的所有属性集中打包成为一段连续的数据块，并可以从打包后的数据块中解析复原所有属性值。
+如果没有这种序列化机制，在设计期设置的属性值无法体现到运行期，也无法将设计结果存储到 .e 源代码文件中。
+</p>
+<p>前面提到的<a href="#PFN_GET_ALL_PROPERTY_DATA">属性打包</a>接口函数，就要求返回一个“包含所有属性值的数据块”的句柄；<a href="#">创建组件</a>接口函数又会将此打包后的数据块传递回来（见参数 pAllData: PBYTE; nAllDataSize: Integer;）。</p>
+<p>通常可借助于 elib.pas 中定义的类 ELib_TPropWriter 和 ELib_TPropReader 进行属性的序列化和反序列化。</p>
+<p>序列化示例：</p>
+<pre>
+function TVclFindDialogProp.SaveProperties: HGLOBAL;
+var w: ELib_TPropWriter;
+begin
+  GetPropertiesFromControl;
+  w := ELib_TPropWriter.Create;
+  w.WriteInt(TVclFindDialogProp_CurrentVersion);
+  w.WriteString(FFindText);
+  w.WriteBool(FDown); w.WriteBool(FWholeWord); w.WriteBool(FMatchCase);
+  w.WriteBool(FDisableUpDown); w.WriteBool(FDisableWholeWord); w.WriteBool(FDisableMatchCase);
+  w.WriteBool(FHideUpDown); w.WriteBool(FHideWholeWord); w.WriteBool(FHideMatchCase);
+  w.WriteBool(FFindNext);
+  Result := w.AllocHGlobal();
+  w.Free;
+end;
+</pre>
+<p>反序列化示例：</p>
+<pre>
+function TVclFindDialogProp.LoadProperties(Data: PBYTE; Size: Integer): Boolean;
+var
+  r: ELib_TPropReader;
+  ver: Integer;
+begin
+  Result := false;
+  if (Data = nil) or (Size = 0) then exit;
+
+  r := ELib_TPropReader.Create(Data, Size);
+  r.ReadInt(ver);
+  r.ReadString(FFindText);
+  r.ReadBool(FDown); r.ReadBool(FWholeWord); r.ReadBool(FMatchCase);
+  r.ReadBool(FDisableUpDown); r.ReadBool(FDisableWholeWord); r.ReadBool(FDisableMatchCase);
+  r.ReadBool(FHideUpDown); r.ReadBool(FHideWholeWord); r.ReadBool(FHideMatchCase);
+  r.ReadBool(FFindNext);
+  r.Free;
+
+  SetPropertiesToControl;
+  Result := true;
+end;
+</pre>
+<p>易语言对序列化后的数据块的数据格式没有要求。支持库开发者只要能保证可以自行反序列化即可。
+在数据块首部记录一个格式版本号，是一个良好的习惯，有助于今后升级时做到向后兼容。
+</p>
+<p>一般来说，对于易语言组件的每一个属性，都应分别用一个成员记录属性的值（这当然不是绝对必需的）。
+这个记录属性值的成员可以放在组件包装类中，也可以放在另外一个独立的类中（同时把此类作为组件包装类的成员）。例如：</p>
+<pre>
+type
+  TVclFindDialogProp = class
+  public
+    FControl: TObject;
+    FFindText: String;
+    FDown,FWholeWord,FMatchCase: EBool;
+    FDisableUpDown,FDisableWholeWord,FDisableMatchCase: EBool;
+    FHideUpDown,FHideWholeWord,FHideMatchCase: EBool;
+    FFindNext: EBool;
+  public
+    constructor Create(control: TObject);
+    function SaveProperties(): HGLOBAL;
+    function LoadProperties(Data: PBYTE; Size: Integer): Boolean;
+    procedure GetPropertiesFromControl();
+    procedure SetPropertiesToControl();
+  end;
+</pre>
+<p>对于以上代码，类 TVclFindDialogProp 记录所有属性值并处理属性序列化，其中还保存了组件包装类的对象，组件包装类中会有一个 TVclFindDialogProp 类型的成员。</p>
+
+<a name="functionalcontrol"></a>
+<h2>非可视控件</h2>
+<p>像“时钟”这种控件，仅设计期显示为图标，运行期不显示，称为“非可视控件”，或称为“功能性控件”。对应的数据类型具有状态值 LDT_IS_FUNCTION_PROVIDER。</p>
+<p>非可视控件也是窗口控件，它总有一个窗口，只不过运行时被隐藏了。</p>
+<p>编写非可视控件，与编写可视控件，基本上没有差别，主要注意以下几点：</p>
+<ul>
+<li>调用 DefineUIDatatype() 时指定状态值 LDT_IS_FUNCTION_PROVIDER；</li>
+<li>组件包装类的基类指定为 TPanel；</li>
+<li>在组件创建后（请参考“<a href="#PFN_CREATE_UNIT">创建组件</a>”接口函数）调用 ELib_SettingForFunctionalControl(control, &lt;imgResID&gt;); 其中 &lt;imgResID&gt; 表示该控件对应的图片资源编号，通常与 DefineUIDatatype() 中指定的图片资源编号一致。此函数的功能主要是在窗口中显示组件图标并限制窗口大小。</li>
+</ul>
+
+<a name="ui_others"></a>
+<h2>其它</h2>
+
+<a name="default_unit_size"></a>
+<h3>指定组件默认尺寸</h3>
+<p>首先定义接口函数“处理额外通知”（PFN_ON_NOTIFY_UNIT），处理 NU_GET_CREATE_SIZE_IN_DESIGNER 消息，典型代码如下：</p>
+<pre>
+function TVCLBitBtn_OnNotifyUnit(nMsg: Integer; dwParam1: DWord; dwParam2: DWord): Integer; stdcall;
+begin
+  case nMsg of
+    NU_GET_CREATE_SIZE_IN_DESIGNER: begin //指定组件的默认宽度和高度
+      PInteger(dwParam1)^ := 80;
+      PInteger(dwParam2)^ := 32;
+    end;
+  end;
+end;
+</pre>
+<p>然后把此接口函数当作（最后一个）参数传入 DefineUIDatatype() 即可。</p>
+
+
+<a name="test_and_debug"></a>
+<h1>测试和调试</h1>
+<p>要在易语言中使用某个支持库，必须将支持库文件(*.fne)复制到易语言安装目录下的 lib 子目录中，并在易语言主菜单“工具 -> 支持库配置”中选择加载该支持库。</p>
+<p>被易语言加载后的支持库，都会有一个详细的支持库信息树（见易语言主窗口“工作夹”中“支持库”子夹），比照此信息树，可验证支持库内部相关信息是否定义准确。</p>
+<p>为了方便，我们可以配置 Delphi 的工程文件，令其将编译生成的支持库文件直接输出到易语言安装目录下的 lib 子目录中，以省去每次更新代码后都复制文件的重复性工作。</p>
+<p>配置方法如下：选择 Delphi 主菜单 "Project -> Options..."，在 "Directories/Conditionals" 子项中的 "Output directory" 中输入“易语言安装目录下的 lib 子目录”（如 "C:\Program Files\e\lib"）。</p>
+<p>此外，如果希望在 Delphi 中按 F9 之后立刻自动启动易语言并加载最新编译的支持库，可进行如下配置：
+选择 Delphi 主菜单 "Run -> Parameters..."，在 "Local" 子项中的 "Host Application" 中输入“易语言主程序的完整路径”（如 "C:\Program Files\e\e.exe"）。
+进行这项配置之后，还可以在 Delphi 中下断点调试跟踪支持库的初始化过程（即 GetNewInf() 及其被调用之前的过程）。
+</p>
+<p>如果希望调试跟踪支持库命令或方法的执行过程，请：</p>
+<ul>
+  <li>用易语言写一个程序并编译为可执行文件(*.exe)（以下称“被调试程序”），确保它用到了欲被调试的支持库中的相应命令或方法</li>
+  <li>打开支持库源代码的 Delphi 工程，进行如下配置：选择 Delphi 主菜单 "Run -> Parameters..."，在 "Local" 子项中的 "Host Application" 中输入“被调试程序的完整路径”</li>
+  <li>在 Delphi 中下断点，按 F9 启动被调试程序</li>
+</ul>
+
+
+<a name="others"></a>
+<h1>其它</h1>
+
+<a name="initialization"></a>
+<h2>慎用 initialization 段</h2>
+<p>如果 Delphi 项目中有两个 .pas 文件，各自有 initialization 段，那么这两个 initialization 段中的代码谁先执行是不明确的，这取决于这两个 .pas 文件谁先被 uses，而多数情况下，我们不希望代码的执行顺序被 uses 语句所左右（考虑到 uses 顺序有可能被无意中调整）。</p>
+<p>对易语言支持库来说，命令/子程序、数据类型、属性、方法、事件等的定义顺序是至关重要的。以命令为例，如果一个命令被定义为第一个命令（索引为0），那么它应始终保持在第一个命令的位置。</p>
+<p>
+设想如下情况：在 a.pas 文件的 initialization 段中定义了命令A，又在 b.pas 文件的 initialization 段中定义了命令B。那么命令A和B都有可能成为本支持库中的第一个命令，取决于 .dpr 文件中的 uses 语句的顺序。
+假设今后无意中调整了 uses 语句的顺序，那么命令A和B的定义顺序将颠倒，以前的使用此支持库开发的易语言程序将全部失效，严重影响了支持库向后兼容性。
+</p>
+<p><b>我们推荐的做法</b>：不在任何文件的 initialization 段中调用支持库相关的定义信息，取而代之的是，在每个 .pas 文件中分别公开一个 procedure 或 function，最后在 .dpr 文件的 begin 段中集中调用。</p>
+
+<a name="compatibility"></a>
+<h2>保证支持库的向下兼容性</h2>
+<p>当支持库发布升级版本时，我们当然不希望以下事情发生：以前的易语言源代码文件打开后乱成一团；以前编译的可执行文件不能正常工作了。如果升级支持库时不小心，容易产生此类兼容性问题。</p>
+<p>以上兼容性问题产生的根源在于：易语言源代码和易语言编译出的可执行程序中，记录的是命令或方法在全局命令表中的索引号，一旦支持库升级后在全局命令表中“插入”了新的命令，或“删除”了原有的命令，原来的索引号可能就指向了错误的地方。</p>
+<p>这要求我们，在升级支持库时，为保证向下兼容性，只能在全局命令表的最后添加新的命令。</p>
+<p>具体到用 Delphi 开发易语言支持库，DefineCommand() 和 DefineMethod() 各有一个“版本号”参数（无符号整数型），用于控制命令或方法在全局方法表中的位置，版本号低的总是排在前面，版本号高的总是在添加到后面，版本号相同的则按调用顺序排列。
+一般来说，支持库的第一个版本，该参数通常使用默认值0，后续升级版本，每添加一个命令或方法，都应使用一个比上次最后一个命令或方法更大的版本号。
+建议在实践中使用“年月日时”的形式作为版本号，如 2008080820，这样不需要记忆之前的版本号，在多人协作开发时也更便于控制。</p>
+<p>以下是带版本号定义命令和方法的示例：</p>
+<pre>
+DefineCommand(Command1, Command1_Args, '命令一', 'command1', '', SDT_INT, 0, LVL_SIMPLE, 1, 0, 0, <span style="background-color:#ffff00">2008080820</span>);
+DefineMethod(datatypeIndex, Datatype1_Method1, [], '方法一', 'Method1', '', SDT_INT, 0, LVL_SIMPLE, -1, 0, 0, <span style="background-color:#ffff00">2008080823</span>);
+</pre>
+<p>一旦支持库发布，不要再修改命令或方法的版本号，以免引发新的兼容性问题。</p>
+<p>这里涉及的命令或方法的版本号，是 Delphi 版 SDK 引入的概念，在支持库加载时进行处理，详见 e.pas 源代码。C/C++ 版 SDK 没有此概念。</p>
+<p>另外，如果支持库升级之后不再需要某个命令或方法，可将其“隐藏”，但不能“删除”，理由如上。
+隐藏某个命令或方法的方法有两个：一、在“状态值”中加入 CT_IS_HIDED 标记；二、将原有的 DefineCommand() 或 DefineMethod() 相应地修改为 DefineHiddenCommand() 或 DefineHiddenMethod()。</p>
+
+<a name="easy"></a>
+<h2>用 Delphi 开发易语言支持库比用 C++ 更简单？</h2>
+<p>当然。</p>
+<p>相对于 C++，使用 Delphi 开发易语言支持库时，您……</p>
+<p>不必为“所有命令和所有类型的方法”的定义信息生成一个超大的CMD_INFO数组（LIB_INFO.m_pBeginCmdInfo）</p>
+<p>不必为“所有命令和所有类型的方法”的实现函数生成一个超大的PFN_EXECUTE_CMD数组（LIB_INFO.m_pCmdsFunc）</p>
+<p>不必为了增加或修改一个命令而在代码的N个位置来回跳转</p>
+<p>不必为所有常量的定义信息生成一个超大的LIB_CONST_INFO数组（LIB_INFO.m_pLibConst）</p>
+<p>不必为所有类型的定义信息生成一个超大的LIB_DATA_TYPE_INFO数组（LIB_INFO.m_pDataType）</p>
+<p>不必为增加一个类型的方法而把其定义信息（CMD_INFO）写在遥远的 LIB_INFO.m_pBeginCmdInfo 这个全局性的巨型数组中</p>
+<p>不必为每个类型生成一个由“所有方法的命令索引”组成的整数常量数组（LIB_DATA_TYPE_INFO.m_pnCmdsIndex）</p>
+<p>不必为每个类型定义分别生成成员定义信息数组、属性定义信息数组、事件定义信息数组</p>
+<p>不必为每个窗口组件类型分别设计一个接口获取函数（LIB_DATA_TYPE_INFO.m_pfnGetInterface），它可被自动生成</p>
+<p>不必为支持库和所有的命令、类型、事件、属性专门指定所支持的操作系统，已默认设定支持Windows</p>
+<p>……</p>
+<p>您需要做的仅仅是，调用 DefineLib(), DefineCommand(), DefineDatatype(), DefineEnumDatatype(), DefineUIDatatype(), DefineMethod(), ...，内部更繁索的工作，程序自动帮您完成。</p>
+<p>……虽然已经简化了很多，但您仍然应该意识到，还有很多细节等待您去处理，尤其是开发窗口组件类型时……</p>
+
+<a name="limitation"></a>
+<h2>局限性</h2>
+<p>使用易语言支持库开发包 for Delphi，可以将大多数 VCL 控件封装为易语言组件。但是，易语言和 VCL 的联姻，仍有不少局限性。认识和理解这些局限性，有助于使两者结合的更好。</p>
+<p>有些 VCL 控件依赖于其所在的 Form 或 Application。比如 TSplitter 就需要放到 Form 中与其互相配合才能工作。我们已把 TForm 封装为易语言组件“VCL窗体”，对 TApplication 暂时没有处理。</p>
+<p>有些 VCL 控件或其属性依赖于 Parent。比如 Align 属性，是针对 Parent 而言的，如果在 VCL 层面不存在父子关系(Parent-Child)，Align 属性显然无法生效。假设两个易语言组件都封装自VCL，如果两者在易语言层面是父子关系，那么我们将尽量（见下文）使其在 VCL 层面也是父子关系（请参考 elib.pas 中对 WU_INIT 消息的处理）。</p>
+<p>在易语言中创建的所有继承自 TGraphicControl 的 VCL 控件，都无法收到 MouseOver 和 MouseLeave 事件，因为缺少了 Delphi 应用程序（TApplication）的环境支持。暂时的解决办法是，自行处理鼠标移动事件，并适时向控件发送 CM_MOUSEENTER 或 CM_MOUSELEAVE 消息（TControl.Perform()）。对于继承自 TWinControl 的 VCL 控件，ELib_WinControlWndProc() 中已自动完成了此工作。</p>
+<p>因为 Delphi 的局限，不同 DLL 内的 VCL 控件无法互相引用。这意味着，不同支持库内的两个封装自 VCL 的易语言组件，即使其在易语言层面是父子关系，但在 VCL 层面无法形成父子关系。无法形成父子关系意味着，依赖父子关系的功能不能得以实现。</p>
+<p>因为易语言的局限，所有支持库都无法引用除核心库之外其它支持库中定义的组件或类型。这意味着以下想法不能实现：在某个支持库中封装 VCL 中的一些通用组件，如 TImageList, TCanvas, TDataSource 等，其它支持库都引用这些组件。</p>
+<p>还可能因为其它一些未知原因，导致个别VCL控件不能在易语言中使用。（例如 Synchronize() 似乎在易语言中水土不服。）</p>
+<p>缺憾总是存在，因为世上没有完美的事物。</p>
+<hr>
+<p>全文完。谢谢。</p>
+
+</BODY>
+</HTML>

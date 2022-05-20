@@ -1,0 +1,22 @@
+//
+// HTMLVIEW.RC2 - resources Microsoft Visual C++ does not edit directly
+//
+
+#ifdef APSTUDIO_INVOKED
+	#error this file is not editable by Microsoft Visual C++
+#endif //APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Add manually edited resources here...
+
+/////////////////////////////////////////////////////////////////////////////
+
+#include "stdafx.h"
+
+#ifndef __COMPILE_FNR
+
+IDB_HTMLVIEWER_BITMAP    BITMAP  DISCARDABLE     "res\\html.bmp"
+
+#endif
+

@@ -1,0 +1,319 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<HTML>
+
+<HEAD>
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=utf-8">
+<LINK href="css.css" rel="stylesheet" type="text/css">
+<TITLE>易语言静态编译技术手册 v1.0</TITLE>
+</HEAD>
+
+<BODY>
+
+<DIV class="body" id="body">
+
+<p><center><img src="logo.png" alt="易语言静态编译技术手册"/></center></p>
+<p>版本：1.0</p>
+<p>作者：大连大有吴涛易语言软件开发有限公司</p>
+<p>日期：2010年元月</p>
+
+
+<a name="0"></a>
+<H1>综述</H1>
+<P>易语言静态编译技术手册，主要介绍易语言静态编译方案，以及支持库改造方法。</P>
+<P>易语言5.0“基于第三方链接器的”静态编译方案的核心是：把易语言编译器生成的中间数据，编译成COFF格式的obj文件，然后把它交给第三方链接器，与各支持库的静态库（*.lib文件）一起链接生成EXE/DLL。</P>
+<P>为了配合静态编译，易语言编译器、核心支持库、集成开发环境(IDE)均已做出重大更新，绝大多数官方支持库已完成自身改造。</P>
+<p>第三方支持库需要作者按照本文介绍的方法完成支持库改造，以便支持静态编译。未经静态编译改造的原有支持库，仍可在新版易语言中使用，只是不能支持静态编译。</p>
+
+<a name="basis"></a>
+<H1>支持库静态编译改造</H1>
+<UL>
+  <LI>目的：使该支持库可以支持静态编译
+  <LI>途径：1、在原支持库(.fne)基础上额外输出部分信息；2、提供支持库的静态库，并按要求导出特定的函数符号
+</UL>
+
+<p>为了支持静态编译，对支持库框架做了扩展性修改，这种修改不会对现有的支持库造成任何负面影响。即：如果不需要支持静态编译，现有的支持库不需要做任何修改；如果已经做了修改，也不影响原有功能和使用方式。最大程度的保持支持库的向前向后兼容性。</p>
+<p>今后支持库要分为两个版本：一个动态库版（即现有的fne/fnr等），一个静态库版。</p>
+<p>动态库版支持库，除了提供向后兼容的运行时支持外，还要在静态编译连接期间提供数据支持。</p>
+<p>静态库版支持库，用于静态编译连接，编译连接期间需要动态库版支持库的支持，但编译连接后生成的EXE/DLL不依赖任何非系统库。</p>
+<p>动态库版和静态库版，基本上还是使用同一套源代码，只是在必要的地方用C/C++预定义宏（__E_STATIC_LIB）区分。</p>
+<p>以下说明中将明确区分静态库和动态库。</p>
+
+<p>为支持静态编译，易语言支持库开发包接口文件 lib2.h 中增加了以下通知项（系统发送给支持库的通知, PFN_NOTIFY_LIB）：<p/>
+<pre>
+#define NL_GET_CMD_FUNC_NAMES            14
+    // 返回所有命令实现函数的的函数名称数组(char*[]), 支持静态编译的动态库必须处理
+#define NL_GET_NOTIFY_LIB_FUNC_NAME      15
+    // 返回处理系统通知的函数名称(PFN_NOTIFY_LIB函数名称), 支持静态编译的动态库必须处理
+#define NL_GET_DEPENDENT_LIBS            16
+    // 返回静态库所依赖的其它静态库文件名列表(格式为\0分隔的文本,结尾两个\0), 支持静态编译的动态库必须处理
+    // kernel32.lib user32.lib gdi32.lib 等常用的系统库不需要放在此列表中
+    // 返回NULL或NR_ERR表示不指定依赖文件
+</pre>
+
+<p>为了支持静态编译，支持库必须做出的改动，详述如下。示例请参考易语言安装目录 sdk\cpp\samples 中的HtmlView支持库源代码。</p>
+
+
+<a name="export_func"></a>
+<h2>一、部分函数需要修改函数名称和符号导出方式</h2>
+
+<p>所有命令和方法的实现函数(PFN_EXECUTE_CMD)、处理系统通知的函数(PFN_NOTIFY_LIB)，均需要修改函数名称，添加“库名称前缀”，并修改为以C符号形式导出（在C++中使用 extern "C"）；</p>
+<p>所有数据类型的接口获取函数(PFN_GET_INTERFACE)，需要统一命名为 <库名称前缀>_GetInterface_<数据类型英文名称>，并修改为以C符号形式导出（在C++中使用 extern "C"）；非窗口组件数据类型不需要接口获取函数。</p>
+<p>这些改动，对静态库来说是必须的，对动态库来说是可有可无的。考虑到两者使用同一套源代码，可统一修改，以减少分开维护的成本。</p>
+
+<p>上面提到的“库名称前缀”，是指其所在支持库（动态库）的文件名的全小写形式，不包含路径和文件名后缀。以核心库 krnln.fne 为例，其库名称前缀就是 krnln 。注意，库名称前缀一定是全部小写字母、数字和下划线的组合，且不能以数字开头，如果库名称确实是以数字开头的，请在库名称前缀前加下划线。对于文件名中有汉字的支持库，其库名称前缀应是，下划线加上库文件名的UTF-8编码的十六进制文本全小写形式（如支持库“汉字.fne”的库名称前缀为 _e6b189e5ad97）。但目前静态编译版本暂不支持有汉字的支持库文件名，和以数字开头的支持库文件名。</p>
+
+<p>修改示例：</p>
+<p>假设之前的核心支持库中有一个命令的实现函数是这么定义的：void fnMessageBox (PMDATA_INF pRetData, INT nArgCount, PMDATA_INF pArgInf)</p>
+<p>修改之后应该是：extern "C" void krnln_fnMessageBox (PMDATA_INF pRetData, INT nArgCount, PMDATA_INF pArgInf)</p>
+
+<p>假设之前的核心支持库中有一个数据类型的接口获取函数是这么定义的：PFN_INTERFACE WINAPI Button_GetInterface (INT nInterfaceNO)</p>
+<p>修改之后应该是：extern "C" PFN_INTERFACE WINAPI krnln_GetInterface_Button (INT nInterfaceNO)</p>
+
+<p>为减少修改工作量，可定义类似如下的C/C++宏（注意把XXX和xxx替换为自已的库名称前缀）：</p>
+<pre>
+#ifdef __cplusplus
+	#define EXTERN_C extern "C" 
+#else
+	#define EXTERN_C 
+#endif
+
+#define DEFINE_XXX_EXECUTE_CMD(fnName) \
+	EXTERN_C void xxx##_##fnName (PMDATA_INF pRetData, INT nArgCount, PMDATA_INF pArgInf)
+</pre>
+
+<p>然后命令或方法实现函数的定义就可以修改为：</p>
+<pre>
+DEFINE_XXX_EXECUTE_CMD (fnMessageBox)
+{
+    //...
+}
+</pre>
+<p>在VC6中，还可以通过正则表达式替换进一步简化操作：搜索正则表达式“void\:b+\(\:i\)\:b*(PMDATA_INF\:b+pRetData\:b*\,\:b*INT\:b+nArgCount\:b*\,\:b*PMDATA_INF\:b+pArgInf\:b*)”，<br/>将其替换为“DEFINE_XXX_EXECUTE_CMD (\1)”（注意其中XXX部分需自行修改）。</p>
+
+
+<a name="notify_func"></a>
+<h2>二、在处理系统通知的函数中返回特定的信息</h2>
+
+<p>在动态库中，需增加对以下三类通知的处理，为静态库提供链接时支持：</p>
+<ul>
+<li>当通知参数为 NL_GET_CMD_FUNC_NAMES 时，应返回所有命令和方法实现函数的函数名称数组，此数组必须与命令和方法定义数组一一对应，数组各成员均为对应函数的函数名称文本指针(char*)；</li>
+<li>当通知参数为 NL_GET_NOTIFY_LIB_FUNC_NAME 时，应返回“处理系统通知的函数”(即自身函数)的函数名称(char*)；</li>
+<li>当通知参数为 NL_GET_DEPENDENT_LIBS 时，应返回“依赖的第三方静态库文件列表”，格式为\0分隔的文本，结尾两个\0。</li>
+</ul>
+<p>我们可以借助于类似如下的C/C++宏 XXX_CMD 自动搜集函数名称（此处及后面出现的 XXX 和 xxx，应替换为相应的“库名称前缀”）：</p>
+<pre>
+#if defined(__E_STATIC_LIB) || defined(__COMPILE_FNR)
+
+	#define XXX_CMD(name)  xxx_##name  // 对于不同的库, 请做相应的名称修改
+	#define XXX_NULL_CMD(name)  NULL
+
+#else if defined(__cplusplus)
+
+    static CFreqMem _g_CmdNames;
+
+    static PFN_EXECUTE_CMD _RecordCmdName (PFN_EXECUTE_CMD func, const TCHAR* szFuncName)
+    {
+        _g_CmdNames.AddDWord ((DWORD)szFuncName);
+        return func;
+    }
+
+    static const TCHAR** _GetCmdNames ()
+    {
+        return (const TCHAR**)_g_CmdNames.GetPtr ();
+    }
+
+    #define XXX_CMD(name)  _RecordCmdName (xxx_##name, "xxx_" #name)  // 对于不同的库, 请做相应的名称修改
+    #define XXX_NULL_CMD(name)  _RecordCmdName(NULL, NULL)
+
+#endif
+</pre>
+
+<p>CFreqMem类定义于mem.cpp/h中。本文后面有一个<a href="#mini_CFreqMem">迷你版的CFreqMem类</a>，可在应急时使用。</p>
+
+<p>然后修改实现函数表：</p>
+<pre>
+#ifndef __E_STATIC_LIB
+PFN_EXECUTE_CMD s_RunFunc[] =
+{
+    XXX_CMD (fnFuntion1),
+    XXX_CMD (fnFuntion2),
+};
+#endif
+</pre>
+<p>以上这步修改工作，在VC6中可以使用正则表达式替换。操作方法：选中PFN_EXECUTE_CMD数组中{}以内的文本，Ctrl+H，搜索正则表达式“\(\:i\)”，替换为“XXX_CMD (\1)”。</p>
+<p>最后在收到 NL_GET_CMD_FUNC_NAMES 通知时返回 _GetCmdNames() 即可：</p>
+<pre>
+EXTERN_C INT WINAPI xxx_ProcessNotifyLib (INT nMsg, DWORD dwParam1, DWORD dwParam2)
+{
+#ifndef __E_STATIC_LIB
+	if(nMsg == NL_GET_CMD_FUNC_NAMES)
+		return (INT) _GetCmdNames();
+	else if(nMsg == NL_GET_NOTIFY_LIB_FUNC_NAME)
+		return (INT) "xxx_ProcessNotifyLib";
+	else if(nMsg == NL_GET_DEPENDENT_LIBS)
+		return (INT) NULL;
+#endif
+	return ProcessNotifyLib(nMsg, dwParam1, dwParam2);
+}
+</pre>
+
+<p>静态库中不需要处理这类通知，但需保证动态库中返回的函数名称在静态库中是真实存在的。其实只要满足了前面对函数名称和导入形式的要求，这个条件必然是成立的。</p>
+
+<p>易语言静态编译链接期间，将向动态库发送以上通知，获取相应的函数名称等信息，然后再去静态库中查找并链接指定名称的函数。动态库在静态编译时充当的角色是为静态库提供辅助信息。
+（注：如果深入到编译链接过程，其实真正用到的不是函数名称，而是符号名称(symbol's name)。易语言编译时将根据函数名称和调用约定确定其符号名称。）</p>
+
+
+<a name="unused"></a>
+<h2>三、从静态库中去除库定义相关的所有信息</h2>
+
+<p>与库定义有关的所有信息，包括命令和方法及其参数的定义信息、命令和方法的实现函数数组(m_pCmdsFunc)、数据类型及其属性事件方法的定义信息、GetNewInf()函数的定义等等，都不应该包含在静态库中。</p>
+<p>从静态库中去除这些信息并不是必须的，但如果不去除，往往会造成链接时符号冲突，或导致链接生成的文件过大等一系列问题。</p>
+<p>当然，以上这些信息都必须在动态库中得到完整保留。一般通过宏 __E_STATIC_LIB 进行代码屏蔽，如：</p>
+<pre>
+#ifndef __E_STATIC_LIB
+    LIB_INFO* WINAPI GetNewInf() { return &s_libinfo; }
+#endif
+</pre>
+
+
+<a name="other"></a>
+<h2>四、其它</h2>
+
+<p>在静态库中，去除全局变量 theApp 的定义，代码中用到它之处，请替换为 AfxGetApp()。如果单纯替换为 AfxGetApp() 不能解决，需自行设法处理。这是必须的。</p>
+<p>在静态库中，CWinApp继承类中的初始化和清理代码，可在一个static的全局类变量的构造和析构函数中调用；动态库中在GetNewInf()中的初始化代码，也可用类似方法解决。</p>
+<p>在静态库中，应尽量减少导出符号对外部的影响，尽量定义为static符号，或添加自定义前缀。这有助于避免链接时的符号重复定义之类的链接错误。</p>
+<p>在静态库中因使用 fnshare.cpp, untshare.cpp 等支持库开发包中的源文件而导出的一些函数，会导致链接时符号冲突，发布前请用 <a href="#resym">resym</a> 程序对静态库文件进行处理。</p>
+<p><b>编译静态库时的链接选项：静态链接MFC（或不用MFC），静态链接多线程C/C++库。</b>VC 6.0 中设置MFC库链接选项的操作方法：菜单 Project -> Settings，General子夹中第一项即是；VC 6.0 中设置C/C++运行库的操作方法：菜单 Project -> Settings，进 C/C++ 子夹，Category选"Code Generation"，Use run-time library选"Multithreaded"或"Debug Multithreaded"。建议先设置MFC库，再设置C/C++库，因为修改前者可能会自动调整后者。</p>
+
+
+<a name="resym"></a>
+<h2>符号重命名程序(resym.exe)</h2>
+<p>由于C/C++编译链接系统（通用编译链接系统）存在某种缺陷，导致许多本应属于“库内私有”的符号必须从静态库(.lib)中公开导出（比如跨源代码文件调用函数的情况），进而又导致多个静态库同时参与链接时产生符号冲突的可能性增大。</p>
+<p>而且，由于易语言支持库都使用了开发包中的某些源代码文件（如fnshare.cpp, untshare.cpp），也不排除其它共用源代码的情况，如不特别处理，必然会在静态链接时产生大量“符号重复定义”之类的错误，导致链接失败。</p>
+<p>手工修改所有支持库源代码，把所有函数和全局变量都重命名，例如统一添加某个名称前缀，理论上也算是一个解决方案，但工作量太大了，准确性和全面性都不好保证。易语言公司一开始也走过这个弯路，效果上显然并不理想。</p>
+<p>我们最终选择开发一个自动化的符号重命名程序，resym.exe，用它对所有静态库(.lib)中的符号进行批量重命名。此程序位于易语言安装目录下的 sdk\tools 子目录中。它是一个控制台程序，请通过命令行启动（Windows XP 开始菜单 -> 执行 -> 输入 cmd.exe 后回车）。</p>
+<p>下面重点介绍此 resym 程序的功能和用法。</p>
+<p>功能：它接收并处理一个LIB或OBJ文件，把其中的某些符号重命名（统一添加名称前缀），最终生成一个新的LIB或OBJ文件。</p>
+<p>工作模式：resym 程序有两种工作模式，第一种是把“用户指定的某些符号”重命名（称为“!all模式”），第二种是把“除去用户指定的某些符号以外的其它所有符号”重命名（称为“all模式”）。默认工作在“!all模式”；当指定all参数时工作在“all模式”。处理易语言支持库的静态库时，一般使用其“all模式”。</p>
+<p>最常用示例：</p>
+<pre>
+resym all infile="c\full\path\to\xxx.lib"
+</pre>
+<p>它等效于：resym all infile="c\full\path\to\xxx.lib" outfile="resymed.lib" prefix=xxx。大多数情况下，这种用法处理易语言支持库的静态库就足够了。默认生成的LIB文件为resymed.lib，通过 outfile 参数可以指定输出路径和文件名。</p>
+<p>如果您要明确阻止某些符号被重命名，请使用 symfile 参数，指定一个“列出所有欲阻止其被重命名的符号名称”的文本文件（文件格式见下文）：resym all infile="c\full\path\to\xxx.lib" symfile=symfile.txt</p>
+<p>参数说明：</p>
+<table border="1">
+<tr><td>参数名称</td><td>含义</td><td>解释</td></tr>
+<tr><td>all</td><td>指定工作模式</td><td>如果不使用此参数，或指定参数值为no，表示采用“!all模式”，即，把“用户指定的某些符号”重命名；<br/>如果使用了此参数或指定参数值为yes，表示采用“all模式”，即，把“除去用户指定的某些符号以外的其它所有符号”重命名。<br/>使用all模式与否，将决定sym,symregex,symfile三个参数的含义（是要求还是阻止该符号被重命名），详见下文<br/>如果工作在“all模式”下，将自动排除对以下符号的重命名：符号名称以prefix开头；符号名称以全小写形式的prefix, _prefix, __prefix开头<br/>示例：<br/>resym all ...<br/>resym all=yes ...<br/>resym all=no ...<br/>resym ...</td></tr>
+<tr><td>infile</td><td>指定输入文件</td><td>必须是LIB或OBJ文件，内部必须是COFF格式</td></tr>
+<tr><td>outfile</td><td>指定输出文件</td><td>程序将把处理后新生成的文件输出到这里。可以等同于infile，表示覆盖原有文件。<br/>默认值为 resymed.lib 或 resymed.obj</td></tr>
+<tr><td>prefix</td><td>指定符号名称前缀</td><td>符号重命名的规则是，在原有符号名称前面添加此前缀<br/>默认值为infile文件的文件名（不含后缀）<br/>如果prefix以"_static"结尾（忽略大小写），程序会自动删除后面的"static"，即"xxx_static"会被视为"xxx_"，此举是为方便处理易语言支持库的静态库（其文件名通常是xxx_static.lib）</td></tr>
+<tr><td>sym</td><td>指定一个符号名称列表</td><td>要求是半角逗号分隔的文本，其中指定的符号名称将用于判断该符号是否会被重命名。<br/>如果工作在“!all模式”，重命名；如果工作在“all模式”，不重命名。这种是否重命名的规则同样适用于下面两个参数。<br/>sym, symregex, symfile三个参数可以同时存在，一起生效。</td></tr>
+<tr><td>symregex</td><td>指定一个正则表达式</td><td>根据LIB或OBJ中的某个符号与此正则表达式是否相匹配，判断该符号是否应该被重命名（规则同上）。</td></tr>
+<tr><td>symfile</td><td>指定一个symfile文件</td><td>要求是一个文本文件，其中的每一行，可以是一个逗号分隔的符号名称列表，也可以是一个以“regex:”开头的正则表达式。<br/>某个符号名称是否在其中，或与其中某个正则表达式相匹配，决定了该符号是否会被重命名（规则同上）。<br/>文件内容示例：<br/>_strcpy,_strlen<br/>?NotifySys@@YGHHKK@Z<br/>regex:\?.*?@CFreqMem@@.*</td></tr>
+</table>
+<p>可以把此程序配置到VC6工程中的Post-build中，这样每次编译出静态库之后都会自动重命名LIB中的符号：</p>
+<pre>
+"C:\Program Files\e\sdk\tools\resym.exe" all infile="$(TargetPath)" outfile="$(TargetPath)"
+</pre>
+<p>resym程序内部执行的工作非常复杂，不能保证它生成的文件与输入文件在功能上完全一致。虽然我们用它成功处理了所有的易语言官方支持库的静态库，但这并不说明此程序没有缺陷和BUG。请谨慎使用，作者不对结果做任何担保。</p>
+
+
+<a name=".run"></a>
+<h2>.run库的特殊处理</h2>
+
+<p>.run库的静态库需以C符号形式导出并实现以下三个函数，xxx_LoadLibrary, xxx_FreeLibrary, xxx_GetProceAddress，其中xxx为库名称前缀（见上面说明），调用约定为cdecl，其函数原型分别为：</p>
+<pre>
+extern "C" BOOL xxx_LoadLibrary();
+
+extern "C" void xxx_FreeLibrary();
+
+extern "C" void* xxx_GetProcAddress(const char* lpProcName);
+</pre>
+<p>在 xxx_LoadLibrary() 和 xxx_FreeLibrary() 中要分别完成初始和清理工作，xxx_GetProcAddress() 要根据参数指定的函数名称返回其函数地址（请自行考虑执行效率方面的优化）。</p>
+
+
+<a name="invc6"></a>
+<h2>VC6.0中的具体操作</h2>
+<p>在原有支持库VC6工程(.dsw)的基础上，新建一个“Win32 Static Library”项目(.dsp)，新项目名称为原项目名称后加"_static"（如 iext3_static）。建议把新项目文件创建在原项目文件旁边（两个项目在同一目录）。</p>
+<p>进入创建项目下一步，不选择“Pre-Compiled header”，根据需要确定是否选择“MFC support”（如果暂时不确认，可以先选上，事后再取消）。</p>
+<p>为新项目添加预定义宏 __E_STATIC_LIB，并把原项目中的源代码文件都添加进来（VC6文件视图(FileView)中支持 Ctrl+C Ctrl+V）。</p>
+
+
+<a name="res"></a>
+<h2>资源文件的处理</h2>
+<p>如果支持库的静态库用到了资源(resources)，则发布时也必须同时携带资源文件(.res)。</p>
+<p>编译静态库时都会同时生成资源文件(.res)，但此资源文件需要经过处理之后才能用于易语言静态编译。原因是：VC6为各资源项生成的标识默认都是数值型资源ID，这种数值ID很容易跟其它静态库的资源相互冲突。所以，我们要把数值ID改为文本ID，并且在文本ID中加入支持库名称前缀，尽可能减少资源ID冲突的可能性。VC6中的具体操作方法如下：</p>
+<p>1，打开工程文件(.dsw)，删除版本资源。</p>
+<p>2，在 VC 里修改所有的资源 ID（整数）为名称（字符串），具体如下：</p>
+<p>   打开 ResourceView，在资源上点右键，选择"Properties" (最下面一项)，把 ID 改为半角引号括起来的带“库名称前缀”（以XXX为例）的形式，比如 IDC_VERTLINEMOVECURSOR 改为 "XXX_IDC_VERTLINEMOVECURSOR"。</p>
+<p>3，删除 Resource.h 中被修改为字符串名称的资源 ID 宏定义(比如 IDC_VERTLINEMOVECURSOR)。方法为：在 ResourceView 中最顶级项目("xxx resources")上点右键，选择 "Resource Symbols"， 选中要删除的项目， Delete。</p>
+<p>4，修改源代码。由于在步骤 3 中删除了资源 ID 对应的宏定义，源代码无法通过编译，转到对应的代码行，如果是形如 LoadXXX(MAKEINTRESOURCE(资源ID)) 的资源加载，改为对应的 LoadXXX("资源名称")，比如</p>
+<p>原有代码 ::LoadCursor (hInstance, MAKEINTRESOURCE(IDC_VERTLINEMOVECURSOR))</p>
+<p>应修改为 ::LoadCursor (hInstance, "XXX_IDC_VERTLINEMOVECURSOR")</p>
+
+
+<a name="distribute"></a>
+<h2>支持库静态库的发布</h2>
+<p>支持库文件(.fne)仍然放在易语言安装目录 lib 目录下，文件名保持不变，以下假设是 xxx.fne。</p>
+<p>静态库文件(.lib)需命名为 xxx_static.lib，复制到易语言安装目录 static_lib 目录下。（请确认此静态库文件已经过<a href="#resym">resym</a>程序处理）</p>
+<p>如果有资源文件(.res)，也应与静态库放置在同一目录(static_lib)，并且文件名也相同：xxx_static.res。</p>
+<p>如果静态库还依赖其它lib文件，应把它们放到易语言安装目录 static_lib 目录下的 xxx 子目录中（此处 xxx 为支持库(fne)文件名），并且，还要在支持库代码中做好相应设置，即处理“NL_GET_DEPENDENT_LIBS”通知，返回静态库依赖项，相应代码大致如下：</p>
+<pre>
+EXTERN_C INT WINAPI xxx_ProcessNotifyLib (INT nMsg, DWORD dwParam1, DWORD dwParam2)
+{
+#ifndef __E_STATIC_LIB
+	if(nMsg == NL_GET_DEPENDENT_LIBS)
+		return (INT) "xxx\a.lib\0xxx\b.lib\0xxx\c.lib\0";
+#endif
+	//...
+}
+</pre>
+
+<a name="mini_CFreqMem"></a>
+<h2>迷你版的CFreqMem类</h2>
+<p>以下代码是完整功能的CFreqMem类的简化版本，仅供应急时使用。</p>
+<pre>
+class CFreqMem
+{
+private:
+	unsigned char* m_pdata;
+	size_t m_datalen, m_bufferlen;
+public:
+	CFreqMem()
+	{
+		m_pdata = NULL; m_datalen = m_bufferlen = 0;
+	}
+	void* GetPtr()
+	{
+		return (m_datalen == 0 ? NULL : m_pdata);
+	}
+	void AddDWord(DWORD dw)
+	{
+		AppendData(&dw, sizeof(dw));
+	}
+	void AppendData(void* pdata, size_t size)
+	{
+		if(m_bufferlen - m_datalen < size)
+		{
+			if(m_pdata == NULL)
+			{
+				m_bufferlen = 128;
+				m_pdata = (unsigned char*) malloc(m_bufferlen);
+				//assert(m_datalen == 0);
+			}
+			while(m_bufferlen - m_datalen < size)
+			{
+				m_bufferlen *= 2;
+			};
+			m_pdata = (unsigned char*) realloc(m_pdata, m_bufferlen);
+		}
+		memcpy(m_pdata + m_datalen, pdata, size);
+		m_datalen += size;
+	}
+};
+</pre>
+
+
+</BODY>
+</HTML>
